@@ -4,8 +4,16 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from .extractor import extract_text
+
+
+def _read_pdf_pages(reader: Any, source_name: str) -> list[str]:
+    pages = [(page.extract_text() or "") for page in reader.pages]
+    if not any(page.strip() for page in pages):
+        raise RuntimeError(f"PDF '{source_name}' contains no extractable text; scanned PDFs require OCR.")
+    return pages
 
 
 def _read_input(path: Path) -> tuple[str, list[str] | None]:
@@ -13,10 +21,14 @@ def _read_input(path: Path) -> tuple[str, list[str] | None]:
         return path.read_text(encoding="utf-8", errors="replace"), None
     try:
         from pypdf import PdfReader
+        from pypdf.errors import PyPdfError
     except ImportError as exc:
         raise RuntimeError("PDF support needs pypdf. Install with: pip install -e .") from exc
-    reader = PdfReader(str(path))
-    pages = [(page.extract_text() or "") for page in reader.pages]
+    try:
+        reader = PdfReader(str(path))
+        pages = _read_pdf_pages(reader, path.name)
+    except PyPdfError as exc:
+        raise RuntimeError(f"Could not read PDF '{path.name}': {exc}") from exc
     return "\n".join(pages), pages
 
 
@@ -41,4 +53,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -20,13 +20,15 @@ change-order-extract path/to/change-order.txt
 
 The command uses `pypdf` for text-based PDFs. Image-only/scanned PDFs need OCR first; this tool does not pretend to read text that is not present in the PDF text layer.
 
-Run the automated checks after installation with `python -m unittest discover -s tests -v`.
+Run the automated checks after installation with `python -m unittest discover -s tests -v`. The suite includes a text fixture, a real text-layer PDF fixture exercised through the CLI, and an intentionally malformed PDF; all are controlled examples rather than customer documents.
+
+Run the field-level benchmark with `python scripts/evaluate.py`. It reports exact-match results and mismatches by field for the checked-in fixtures. The current 100% fixture score is a regression result on these controlled examples only, not an estimate of performance on Sledge documents.
 
 ## Output contract
 
 `fields` contains a fixed set of keys. Each field has `value`, `confidence`, `evidence`, and `page`. Unknown values are `null` with confidence `0`; labeled but unparseable values retain their evidence and receive low confidence. Repeated contradictory values are `null` with low confidence and the conflicting evidence retained. Dates are emitted as ISO `YYYY-MM-DD`; ambiguous numeric dates are left null with their evidence retained. Monetary values are numeric and preserve sign when the source explicitly indicates a credit or parenthesized amount. The output contract is described in `schema.json`, and runtime type checks populate `validation`.
 
-The confidence values are transparent rule-based indicators, not calibrated probabilities. A direct, parseable value receives `0.95`; a numeric date with one valid interpretation receives `0.72`; a labeled value that cannot be parsed receives `0.25`; conflicting values receive `0.20`; and absent fields receive `0`. Treat these as review priorities, not guarantees of correctness.
+The confidence values are transparent rule-based indicators, not calibrated probabilities. A direct, parseable value receives `0.95`; a value on the following line receives `0.85`; a numeric date with one valid interpretation receives `0.72`; a labeled value that cannot be parsed receives `0.25`; conflicting values receive `0.20`; and absent fields receive `0`. Treat these as review priorities, not guarantees of correctness.
 
 The output covers change-order number, project, owner, contractor, issue date, title, description, reason, cost change, original and revised contract sums, schedule impact in days, status, requester, and approver. Extend the aliases and schema together when a target customer requires additional fields.
 

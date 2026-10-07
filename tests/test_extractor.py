@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import io
 import sys
-import types
 import unittest
 from io import BytesIO
 from pathlib import Path
@@ -13,7 +12,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT.parent / "src"))
 
-from change_order_extractor.cli import _read_input, main
+from change_order_extractor.cli import _read_input, _read_pdf_pages, main
 from change_order_extractor.extractor import extract_text, validate_result
 
 
@@ -65,6 +64,29 @@ class ExtractorTests(unittest.TestCase):
         self.assertIsNone(field["value"])
         self.assertEqual("Net Change: $12,45.789", field["evidence"])
 
+    def test_schedule_units_are_normalized_without_guessing(self) -> None:
+        fields = extract_text("Schedule Impact: 2 weeks | Status: Pending")["fields"]
+        self.assertEqual(14, fields["schedule_impact_days"]["value"])
+        self.assertEqual(0, extract_text("Schedule Impact: No impact")["fields"]["schedule_impact_days"]["value"])
+        self.assertIsNone(extract_text("Schedule Impact: about 2")["fields"]["schedule_impact_days"]["value"])
+        self.assertIsNone(extract_text("Schedule Impact: 2 weeks or 10 days")["fields"]["schedule_impact_days"]["value"])
+
+    def test_pipe_cells_and_next_line_values(self) -> None:
+        text = "\n".join((
+            "Project Name: Tower A | Owner: City Works",
+            "Change Order No:",
+            "CO-204",
+            "Approved By:",
+            "A. Morgan",
+        ))
+        fields = extract_text(text)["fields"]
+        self.assertEqual("Tower A", fields["project_name"]["value"])
+        self.assertEqual("City Works", fields["owner"]["value"])
+        self.assertEqual("CO-204", fields["change_order_number"]["value"])
+        self.assertEqual("A. Morgan", fields["approved_by"]["value"])
+        self.assertEqual(0.95, fields["project_name"]["confidence"])
+        self.assertEqual(0.85, fields["change_order_number"]["confidence"])
+
     def test_page_provenance_is_preserved(self) -> None:
         result = extract_text("", page_texts=["Project: First", "Project: Second"])
         field = result["fields"]["project_name"]
@@ -78,48 +100,34 @@ class ExtractorTests(unittest.TestCase):
         result["fields"]["status"]["confidence"] = 1.5
         self.assertTrue(any("confidence" in error for error in validate_result(result)))
 
-    def test_pdf_reader_preserves_page_boundaries(self) -> None:
-        class FakePage:
-            def __init__(self, text: str) -> None:
-                self.text = text
+    def test_pdf_cli_reads_real_pdf_file_end_to_end(self) -> None:
+        pdf_path = ROOT / "fixtures" / "change_order.pdf"
+        output = io.StringIO()
+        with patch("sys.argv", ["change-order-extract", str(pdf_path)]), redirect_stdout(output):
+            self.assertEqual(0, main())
+        result = json.loads(output.getvalue())
+        self.assertEqual("Tower A", result["fields"]["project_name"]["value"])
+        self.assertEqual("Approved", result["fields"]["status"]["value"])
+        self.assertEqual(14, result["fields"]["schedule_impact_days"]["value"])
+        self.assertEqual(1, result["fields"]["project_name"]["page"])
+        self.assertTrue(result["validation"]["valid"], result["validation"]["errors"])
 
-            def extract_text(self) -> str:
-                return self.text
+    def test_malformed_pdf_returns_actionable_error(self) -> None:
+        pdf_path = ROOT / "fixtures" / "corrupt.pdf"
+        with self.assertRaisesRegex(RuntimeError, "Could not read PDF 'corrupt.pdf'"):
+            _read_input(pdf_path)
 
-        class FakeReader:
-            pages = [FakePage("Project: Tower"), FakePage("Status: Submitted")]
-
-        fake_pypdf = types.SimpleNamespace(PdfReader=lambda path: FakeReader())
-        with patch.dict(sys.modules, {"pypdf": fake_pypdf}):
-            text, pages = _read_input(Path("example.pdf"))
-        self.assertEqual(["Project: Tower", "Status: Submitted"], pages)
-        self.assertIn("\n", text)
-
-    def test_real_text_pdf_extracts_fields_with_pypdf(self) -> None:
+    def test_blank_pdf_is_reported_as_needing_ocr(self) -> None:
         from pypdf import PdfReader, PdfWriter
-        from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
         writer = PdfWriter()
-        page = writer.add_blank_page(width=300, height=300)
-        font = DictionaryObject({
-            NameObject("/Type"): NameObject("/Font"),
-            NameObject("/Subtype"): NameObject("/Type1"),
-            NameObject("/BaseFont"): NameObject("/Helvetica"),
-        })
-        fonts = DictionaryObject({NameObject("/F1"): font})
-        page[NameObject("/Resources")] = DictionaryObject({NameObject("/Font"): fonts})
-        stream = DecodedStreamObject()
-        stream.set_data(b"BT /F1 12 Tf 40 250 Td (Project: Tower) Tj ET BT /F1 12 Tf 40 230 Td (Status: Approved) Tj ET")
-        page[NameObject("/Contents")] = writer._add_object(stream)
-        pdf_bytes = BytesIO()
-        writer.write(pdf_bytes)
-        pdf_bytes.seek(0)
-
-        page_texts = [pdf_page.extract_text() or "" for pdf_page in PdfReader(pdf_bytes).pages]
-        result = extract_text("\n".join(page_texts), source="memory.pdf", page_texts=page_texts)
-        self.assertEqual("Tower", result["fields"]["project_name"]["value"])
-        self.assertEqual("Approved", result["fields"]["status"]["value"])
-        self.assertTrue(result["validation"]["valid"], result["validation"]["errors"])
+        writer.add_blank_page(width=300, height=300)
+        pdf_data = BytesIO()
+        writer.write(pdf_data)
+        pdf_data.seek(0)
+        reader = PdfReader(pdf_data)
+        with self.assertRaisesRegex(RuntimeError, "contains no extractable text"):
+            _read_pdf_pages(reader, "scanned.pdf")
 
     def test_cli_writes_parseable_json_for_text_input(self) -> None:
         input_path = ROOT / "fixtures" / "change_order.txt"

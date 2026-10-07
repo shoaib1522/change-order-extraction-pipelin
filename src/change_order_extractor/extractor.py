@@ -13,6 +13,7 @@ class Candidate:
     value: Any
     evidence: str
     page: int | None
+    confidence: float = 0.95
 
 
 # Aliases are deliberately explicit. Broad semantic guessing tends to create
@@ -88,6 +89,20 @@ def _parse_number(raw: str) -> float | None:
     return int(number) if number.is_integer() else number
 
 
+def _parse_schedule_days(raw: str) -> int | None:
+    value = re.sub(r"\s+", " ", raw.strip().casefold())
+    if re.search(r"\bno (?:schedule )?impact\b", value):
+        return 0
+    matches = re.findall(r"([+-]?\d+)\s*(calendar|working)?\s*(days?|weeks?)\b", value)
+    if len(matches) != 1:
+        return None
+    amount_text, _day_kind, unit = matches[0]
+    amount = int(amount_text)
+    if unit.startswith("week"):
+        return amount * 7
+    return amount
+
+
 def _parse_value(field: str, raw: str) -> Any:
     value = re.sub(r"\s+", " ", raw).strip(" \t:;,-")
     if not value:
@@ -97,18 +112,19 @@ def _parse_value(field: str, raw: str) -> Any:
     if field in {"cost_change", "original_contract_sum", "revised_contract_sum"}:
         return _parse_number(value)
     if field == "schedule_impact_days":
-        match = re.search(r"[-+]?\d+", value)
-        return int(match.group(0)) if match else None
+        return _parse_schedule_days(value)
     return value
 
 
 def _collect_candidates(pages: list[str]) -> dict[str, list[Candidate]]:
     found = {field: [] for field in ALIASES}
     for page_number, page_text in enumerate(pages, start=1):
-        lines = page_text.splitlines()
+        # Many extracted PDF tables put several labeled cells on one line.
+        # Pipes are a safe, explicit cell boundary; ordinary spaces are not.
+        lines = [cell.strip() for raw_line in page_text.splitlines() for cell in raw_line.split("|")]
         index = 0
         while index < len(lines):
-            line = lines[index].strip()
+            line = lines[index]
             match = LABEL_RE.match(line)
             if not match:
                 index += 1
@@ -119,6 +135,7 @@ def _collect_candidates(pages: list[str]) -> dict[str, list[Candidate]]:
                 index += 1
                 continue
             evidence_lines = [line]
+            confidence = 0.95
             if field in {"description", "reason"}:
                 cursor = index + 1
                 while cursor < len(lines) and lines[cursor].strip() and not LABEL_RE.match(lines[cursor]):
@@ -128,9 +145,16 @@ def _collect_candidates(pages: list[str]) -> dict[str, list[Candidate]]:
                 value = " ".join(part for part in (value, continuation) if part).strip()
                 index = cursor
             else:
-                index += 1
+                # Some forms put a label and its value on separate lines.
+                if not value and index + 1 < len(lines) and lines[index + 1] and not LABEL_RE.match(lines[index + 1]):
+                    value = lines[index + 1]
+                    evidence_lines.append(lines[index + 1])
+                    confidence = 0.85
+                    index += 2
+                else:
+                    index += 1
             parsed = _parse_value(field, value)
-            found[field].append(Candidate(parsed, " ".join(evidence_lines), page_number))
+            found[field].append(Candidate(parsed, " ".join(evidence_lines), page_number, confidence))
     return found
 
 
@@ -146,7 +170,7 @@ def _field_result(field: str, candidates: list[Candidate]) -> dict[str, Any]:
         evidence = " | ".join(candidate.evidence for candidate in candidates)
         return {"value": None, "confidence": 0.2, "evidence": evidence, "page": None}
     candidate = candidates[0]
-    confidence = 0.95
+    confidence = candidate.confidence
     # This version records reviewable confidence cues, not learned probabilities.
     if field == "issue_date" and re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b", candidate.evidence):
         confidence = 0.72

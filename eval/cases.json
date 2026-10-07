@@ -1,0 +1,57 @@
+[
+  {
+    "name": "labeled-text-form",
+    "input": "tests/fixtures/change_order.txt",
+    "expected": {
+      "change_order_number": "CO-017",
+      "project_name": "Riverside Library Renovation",
+      "owner": "City of Riverside",
+      "contractor": "Northstar Construction LLC",
+      "issue_date": "2025-04-04",
+      "title": "Replace concealed damaged conduit",
+      "description": "Remove and replace 80 feet of damaged conduit in the east wing. Work includes new conduit, fittings, supports, and inspection.",
+      "reason": "Existing conduit was corroded and not shown in the contract documents.",
+      "cost_change": 12450.5,
+      "original_contract_sum": 1200000,
+      "revised_contract_sum": 1212450.5,
+      "schedule_impact_days": 3,
+      "status": "Approved",
+      "requested_by": "Dana Lee",
+      "approved_by": "Morgan Patel"
+    }
+  },
+  {
+    "name": "text-layer-pdf",
+    "input": "tests/fixtures/change_order.pdf",
+    "expected": {
+      "change_order_number": "CO-204",
+      "project_name": "Tower A",
+      "owner": "City Works",
+      "schedule_impact_days": 14,
+      "status": "Approved"
+    }
+  },
+  {
+    "name": "pipe-cells-and-next-line-values",
+    "input": "tests/fixtures/messy_change_order.txt",
+    "expected": {
+      "change_order_number": "CO-204",
+      "project_name": "North Annex",
+      "owner": "City College",
+      "issue_date": "2025-04-04",
+      "description": "Replace 30 feet of damaged conduit in the east corridor. Includes supports, fittings, and inspection.",
+      "reason": "Existing conduit was corroded and not shown in the contract set.",
+      "cost_change": -2450,
+      "schedule_impact_days": 14,
+      "status": "Pending"
+    }
+  },
+  {
+    "name": "ambiguous-and-conflicting-values",
+    "input": "tests/fixtures/ambiguous_change_order.txt",
+    "expected": {
+      "issue_date": null,
+      "status": null
+    }
+  }
+]
