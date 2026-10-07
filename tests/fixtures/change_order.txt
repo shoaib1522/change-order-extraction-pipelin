@@ -1,0 +1,16 @@
+PROJECT NAME: Riverside Library Renovation
+Owner: City of Riverside
+General Contractor: Northstar Construction LLC
+Change Order No.: CO-017
+Date Issued: April 4, 2025
+Subject: Replace concealed damaged conduit
+Description of Change: Remove and replace 80 feet of damaged conduit in the east wing.
+Work includes new conduit, fittings, supports, and inspection.
+Reason for Change: Existing conduit was corroded and not shown in the contract documents.
+Net Change: $12,450.50
+Original Contract Sum: $1,200,000.00
+Revised Contract Sum: $1,212,450.50
+Schedule Impact: 3 calendar days
+Status: Approved
+Prepared By: Dana Lee
+Approved By: Morgan Patel

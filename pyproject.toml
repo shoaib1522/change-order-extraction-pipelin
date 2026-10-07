@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "change-order-extractor"
+version = "0.1.0"
+description = "Evidence-backed extraction of fields from change order documents"
+requires-python = ">=3.10"
+dependencies = ["pypdf>=4.0"]
+
+[project.scripts]
+change-order-extract = "change_order_extractor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

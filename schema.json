@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Change order extraction result",
+  "type": "object",
+  "required": ["schema_version", "source", "fields", "validation"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "source": {"type": "string"},
+    "fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["change_order_number", "project_name", "owner", "contractor", "issue_date", "title", "description", "reason", "cost_change", "original_contract_sum", "revised_contract_sum", "schedule_impact_days", "status", "requested_by", "approved_by"],
+      "properties": {
+        "change_order_number": {"$ref": "#/$defs/stringField"}, "project_name": {"$ref": "#/$defs/stringField"},
+        "owner": {"$ref": "#/$defs/stringField"}, "contractor": {"$ref": "#/$defs/stringField"},
+        "issue_date": {"$ref": "#/$defs/dateField"}, "title": {"$ref": "#/$defs/stringField"},
+        "description": {"$ref": "#/$defs/stringField"}, "reason": {"$ref": "#/$defs/stringField"},
+        "cost_change": {"$ref": "#/$defs/numberField"}, "original_contract_sum": {"$ref": "#/$defs/numberField"},
+        "revised_contract_sum": {"$ref": "#/$defs/numberField"}, "schedule_impact_days": {"$ref": "#/$defs/integerField"},
+        "status": {"$ref": "#/$defs/stringField"}, "requested_by": {"$ref": "#/$defs/stringField"},
+        "approved_by": {"$ref": "#/$defs/stringField"}
+      }
+    },
+    "validation": {
+      "type": "object", "required": ["valid", "errors"], "additionalProperties": false,
+      "properties": {"valid": {"type": "boolean"}, "errors": {"type": "array", "items": {"type": "string"}}}
+    }
+  },
+  "$defs": {
+    "baseField": {
+      "type": "object", "required": ["value", "confidence", "evidence", "page"], "additionalProperties": false,
+      "properties": {
+        "value": {},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "evidence": {"type": ["string", "null"]}, "page": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "stringField": {"allOf": [{"$ref": "#/$defs/baseField"}, {"properties": {"value": {"type": ["string", "null"]}}}]},
+    "dateField": {"allOf": [{"$ref": "#/$defs/baseField"}, {"properties": {"value": {"type": ["string", "null"], "format": "date"}}}]},
+    "numberField": {"allOf": [{"$ref": "#/$defs/baseField"}, {"properties": {"value": {"type": ["number", "null"]}}}]},
+    "integerField": {"allOf": [{"$ref": "#/$defs/baseField"}, {"properties": {"value": {"type": ["integer", "null"]}}}]}
+  }
+}
